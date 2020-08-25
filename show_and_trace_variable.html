@@ -1,0 +1,222 @@
+<script src="https://assets.crowd.aws/crowd-html-elements.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/4.0.0-beta.12/fabric.min.js"></script>
+
+<style type="text/css">
+
+</style>
+
+<crowd-form>
+  <div class="container">
+    <div id="drawing-sheet-div", style="display: inline-block; background-color: #BCC6CC; padding: 2px; margin-left: 1%">
+      <canvas id="drawing-sheet", style="border: 1px solid black;"></canvas>
+      <p>Sketch Board</p>
+    </div>
+    <div id="drawing-sheet-div", style="display: inline-block; background-color: #BCC6CC; padding: 2px;">
+      <canvas id="display-sheet", style="border: 1px solid black;"></canvas>
+      <p>Preview</p>
+    </div>
+    <div id="instruction-sheet-div", style="display: inline-block; background-color: #BCC6CC; padding: 10px; margin-top: 20px; ">
+      <canvas id="instruction-sheet", style="border: 1px solid black;"></canvas>
+      <p>Instructions</p>
+    </div>
+    <div id="count-down", style="top: 0px; left: 1400px;">
+      <p id="timeleft" style="position: absolute; top: 0px; left: 1000px">Count Down: X Minutes X Seconds</p>
+    </div>
+  </div>
+    <div style="width: 100%;">
+      <crowd-button id="start-drawing" style="float: left; margin-left: 10px; margin-top: 3%" onclick="start_drawing()">
+        Start Drawing
+      </crowd-button>
+      <crowd-button id="clear-button" style="float: left; margin-left: 10px; margin-top: 3%" onclick="clear_canvas()">
+        Reset
+      </crowd-button>
+    </div>
+  </div>
+
+  <short-instructions>
+    <p>Instructions</p>
+    <p>Task Goal:</p>
+    <p>1. Click On Show Image -> An Image Would Appear.</p>
+    <p>2. Please trace the main object out on top of the image.</p>
+    <p>-> Do not include messy lines or chunks of black.</p>
+    <p>-> Include enough of the important details so that</p>
+    <p>      a child would understand what you drew.</p>
+    <p>-> Do not just trace the boundary.</p>
+    <p>3. Keep drawing as long as the timer is going.</p>
+    <p>4. Submit button would appear bottom right after timer is up.</p>
+    <p>5. You will be timed, but you can redo your drawing.</p>
+    <p>You have ${draw_time} seconds to draw.</p>
+    <p></p>
+    <p></p>
+    <p>Functionalities: </p>
+    <p>Show Image: Display the reference image as background.</p>
+    <p>Start Drawing: Start the timer, and enable the sketch box.</P>
+    <p>Clear Drawing: Restart the timer, clear the existing drawing. </p>
+    <p></p>
+    <p>${image_name}</p>
+    <p>Good luck and have fun!</p>
+  </short-instructions>
+
+  <crowd-input id="input" name="imageData" type="hidden"></crowd-input>
+</crowd-form>
+
+<script>
+  var instruction_image_url = "https://aivas.s3.us-east-2.amazonaws.com/instructions/show_and_trace/instruction_image_3.jpg";
+  var imgUrl = "${path}";
+  var draw_time = ${draw_time} * 1000;
+
+  var instruction_image = new Image();
+  instruction_image.src = instruction_image_url;
+
+  var cur_img = new Image();
+  var intervalId;
+  var timeoutId;
+  cur_img.src = imgUrl;
+
+  var drawing_canvas = new fabric.Canvas("drawing-sheet");
+  var display_canvas = new fabric.Canvas("display-sheet");
+  var instruction_canvas = new fabric.Canvas("instruction-sheet");
+
+  const drawing_sheet = document.getElementById("drawing-sheet");
+
+  cur_img.onload = function () {
+    drawing_canvas.setHeight(cur_img.height);
+    drawing_canvas.setWidth(cur_img.width);
+    drawing_canvas.setBackgroundImage(imgUrl, drawing_canvas.renderAll.bind(drawing_canvas), {
+      backgroundImageOpacity: 0.5,
+      backgroundImageStretch: false
+    });
+
+    display_canvas.setHeight(cur_img.height);
+    display_canvas.setWidth(cur_img.width);
+    display_canvas.backgroundColor = "white";
+    display_canvas.renderAll();
+
+    var minutes = Math.floor((draw_time / (1000 * 60)));
+    var seconds = Math.floor((draw_time % (1000 * 60) / 1000));
+    document.getElementById("timeleft").innerHTML = "Count Down:" + minutes + " Minutes " + seconds + " Seconds";
+  }
+
+  var drawing_mode = false;
+
+  drawing_canvas.on(
+    'object:added', function () {
+      console.log("Modified");
+      if (drawing_mode == true) {
+        console.log("Replicated")
+        drawing_canvas.isDrawingMode = false;
+        drawing_canvas.backgroundImage = 0;
+        drawing_canvas.backgroundColor = '#FFFFFF';
+        drawing_canvas.renderAll();
+        var drawn_img = drawing_canvas.toCanvasElement().toDataURL();
+        display_canvas.setBackgroundImage(
+          drawn_img, 
+          instruction_canvas.renderAll.bind(display_canvas), {
+          backgroundImageOpacity: 0.5,
+          backgroundImageStretch: false
+        });
+        drawing_canvas.setBackgroundImage(imgUrl, drawing_canvas.renderAll.bind(drawing_canvas), {
+          backgroundImageOpacity: 0.5,
+          backgroundImageStretch: false
+        });
+        drawing_canvas.isDrawingMode = true;
+      }
+    }
+  )
+
+  drawing_button = document.getElementById("start-drawing");
+  clear_button = document.getElementById("clear-button");
+  clear_button.disabled = true;
+
+  instruction_image.onload = function () {
+    instruction_canvas.setHeight(instruction_image.height);
+    instruction_canvas.setWidth(instruction_image.width);
+    instruction_canvas.setBackgroundImage(
+      instruction_image_url, 
+      instruction_canvas.renderAll.bind(instruction_canvas), {
+      backgroundImageOpacity: 0.5,
+      backgroundImageStretch: false
+    });
+  }
+
+  function clear_canvas() {
+    drawing_mode = false;
+    
+    display_canvas.clear();
+    display_canvas.backgroundColor = '#FFFFFF';
+    drawing_canvas.clear();
+    drawing_canvas.setBackgroundImage(
+      imgUrl, 
+      drawing_canvas.renderAll.bind(drawing_canvas), {
+      backgroundImageOpacity: 0.5,
+      backgroundImageStretch: false
+    });
+    console.log("Drawing Canvas Reset");
+    display_timeleft = draw_time * 1000;
+    clearTimeout(timeoutId);
+    clearInterval(intervalId);
+    document.getElementById("start-drawing").innerHTML = "Restart Drawing";
+    document.getElementById("timeleft").innerHTML = "Count Down: X Minutes X Seconds";
+    drawing_button.disabled = false;
+    clear_button.disabled = true;
+
+    var minutes = Math.floor((draw_time / (1000 * 60)));
+    var seconds = Math.floor((draw_time % (1000 * 60) / 1000));
+    document.getElementById("timeleft").innerHTML = "Count Down:" + minutes + " Minutes " + seconds + " Seconds";
+  }
+
+  document.querySelector("crowd-form").onsubmit = function(e) {
+    drawing_canvas.backgroundImage = 0;
+    drawing_canvas.backgroundColor = '#FFFFFF';
+    drawing_canvas.renderAll()
+    console.log("SUBMIT");
+    const img = drawing_canvas.toCanvasElement().toDataURL();
+    document.querySelector("crowd-input").value = img;
+  }
+
+  function count_down() {
+    display_timeleft = display_timeleft - 1000;
+    var minutes = Math.floor((display_timeleft / (1000 * 60)));
+    var seconds = Math.floor((display_timeleft % (1000 * 60) / 1000));
+    document.getElementById("timeleft").innerHTML = "Count Down:" + minutes + " Minutes " + seconds + " Seconds";
+
+    if (display_timeleft < 0) {
+      clearInterval(intervalId);
+      document.getElementById("timeleft").innerHTML = "TIME IS UP";
+    }
+  }
+
+  function start_drawing() {
+    console.log("Start to draw");
+    drawing_mode = true;
+    drawing_button.disabled = true;
+    clear_button.disabled = false;
+    drawing_canvas.isDrawingMode = true;
+    drawing_canvas.freeDrawingBrush.width = 4;
+    drawing_canvas.freeDrawingBrush.color = "#000000";
+    display_timeleft = draw_time;
+    intervalId = setInterval(count_down, 1000);
+    timeoutId = setTimeout(stop_drawing, display_timeleft);
+  }
+
+  function stop_drawing() {
+    console.log("End drawing");
+    drawing_mode = false;
+    drawing_canvas.isDrawingMode = false;
+    drawing_canvas.backgroundImage = 0;
+    drawing_canvas.backgroundColor = '#FFFFFF';
+    drawing_canvas.renderAll()
+    var drawn_img = drawing_canvas.toCanvasElement().toDataURL();
+    display_canvas.setBackgroundImage(
+      drawn_img, 
+      instruction_canvas.renderAll.bind(display_canvas), {
+      backgroundImageOpacity: 0.5,
+      backgroundImageStretch: false
+    });
+    drawing_canvas.setBackgroundImage(imgUrl, drawing_canvas.renderAll.bind(drawing_canvas), {
+      backgroundImageOpacity: 0.5,
+      backgroundImageStretch: false
+    });
+  }
+
+</script>
